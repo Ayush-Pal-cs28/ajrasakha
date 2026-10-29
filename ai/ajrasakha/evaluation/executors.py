@@ -102,6 +102,99 @@ def extract_plan_from_response(response_text: str) -> dict:
 
     return {}
 
+# Tool messages that are bookkeeping, not source data for the answer.
+RETRIEVAL_CONTEXT_EXCLUDED_TOOLS = {
+    "upload_question_to_reviewer_system",
+    "location_information_tool",
+}
+
+
+def _message_type(message: dict) -> str:
+    return str(message.get("type") or message.get("role") or "").strip().lower()
+
+
+def _message_text(message: dict) -> str:
+    content = message.get("content")
+
+    if isinstance(content, str):
+        return content.strip()
+
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                parts.append(block["text"])
+        return "\n".join(part for part in parts if part).strip()
+
+    if content is None:
+        return ""
+
+    return str(content).strip()
+
+
+def _state_messages(response_text: str) -> list[dict]:
+    """Return the message dicts from a values payload (or bare state)."""
+    try:
+        data = json.loads(response_text)
+    except Exception:
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    values = data.get("values")
+    state = values if isinstance(values, dict) else data
+    messages = state.get("messages") or []
+
+    if not isinstance(messages, list):
+        return []
+
+    return [message for message in messages if isinstance(message, dict)]
+
+
+def extract_final_answer(response_text: str) -> str:
+    """Return the last farmer-facing AI answer text, or "" when absent."""
+    for message in reversed(_state_messages(response_text)):
+        if _message_type(message) not in {"ai", "assistant"}:
+            continue
+
+        if message.get("tool_calls"):
+            continue
+
+        text = _message_text(message)
+        if text:
+            return text
+
+    return ""
+
+
+def extract_retrieval_context(response_text: str) -> list[str]:
+    """Return tool outputs from the current turn, as "[tool] content" strings."""
+    messages = _state_messages(response_text)
+
+    start = 0
+    for index, message in enumerate(messages):
+        if _message_type(message) in {"human", "user"}:
+            start = index + 1
+
+    contexts = []
+    for message in messages[start:]:
+        if _message_type(message) != "tool":
+            continue
+
+        name = str(message.get("name") or "tool").strip()
+        if name in RETRIEVAL_CONTEXT_EXCLUDED_TOOLS:
+            continue
+
+        text = _message_text(message)
+        if text:
+            contexts.append(f"[{name}] {text}")
+
+    return contexts
+
+
 def run_mock_case(case: dict) -> dict:
     start_time = time.time()
     expected_tools = case.get("expected_tools", [])
