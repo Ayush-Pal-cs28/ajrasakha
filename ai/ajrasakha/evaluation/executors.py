@@ -220,6 +220,8 @@ def run_mock_case(case: dict) -> dict:
         "graph_status": "success",
         "latency_seconds": round(time.time() - start_time, 2),
         "response_text": response_text,
+        "final_answer": "",
+        "retrieval_context": [],
         "error": "",
         "trace": trace,
     }
@@ -285,6 +287,8 @@ def run_live_case(case: dict) -> dict:
                     "graph_status": graph_status,
                     "latency_seconds": round(time.time() - start_time, 2),
                     "response_text": "",
+                    "final_answer": "",
+                    "retrieval_context": [],
                     "error": error[:500],
                     "trace": {
                         "nodes": [],
@@ -351,6 +355,8 @@ def run_live_case(case: dict) -> dict:
     observed_tools_list = extract_tools_from_response(extraction_source)
     observed_nodes = extract_nodes_from_response(events, full_stream_text)  
     observed_plan = extract_plan_from_response(extraction_source)
+    final_answer = extract_final_answer(extraction_source)
+    retrieval_context = extract_retrieval_context(extraction_source)
 
     return {
         "name": case.get("name"),
@@ -361,6 +367,8 @@ def run_live_case(case: dict) -> dict:
         "graph_status": graph_status,
         "latency_seconds": round(time.time() - start_time, 2),
         "response_text": extraction_source[:500],
+        "final_answer": final_answer,
+        "retrieval_context": retrieval_context,
         "error": error[:500],
         "trace": {
             "nodes": observed_nodes,
