@@ -366,7 +366,7 @@ def run_live_case(case: dict) -> dict:
         "http_status": http_status,
         "graph_status": graph_status,
         "latency_seconds": round(time.time() - start_time, 2),
-        "response_text": extraction_source[:500],
+        "response_text": final_answer or extraction_source[:500],
         "final_answer": final_answer,
         "retrieval_context": retrieval_context,
         "error": error[:500],
